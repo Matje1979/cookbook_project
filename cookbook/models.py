@@ -2,12 +2,18 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
+from django.db.models import Count
 
-# Create your models here.
+
+class IngredientQuerySet(models.QuerySet):
+    def top_ingredients(self):
+        return self.annotate(recipe_count=Count("recipe")).order_by("-recipe_count")[:5]
 
 
 class Ingredient(models.Model):
     name = models.CharField(max_length=50, unique=True)
+
+    objects = IngredientQuerySet.as_manager()
 
     def __str__(self):
         return self.name
@@ -22,11 +28,15 @@ class Recipe(models.Model):
     def __str__(self):
         return self.name
 
+    def avg_rating(self):
+        ratings_list = list(self.ratings.values_list("rate", flat=True))
+        return sum(ratings_list) / len(ratings_list)
+
 
 class Rating(models.Model):
     rate = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name="ratings")
 
     class Meta:
         unique_together = ["user", "recipe"]
