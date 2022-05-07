@@ -89,12 +89,15 @@ class RecipeTestCase(CookbookTestCase):
         )
         return
 
-    def test_invalid_rating(self):
+    def test_invalid_rating_recipe_author(self):
         with self.assertRaises(ValidationError) as e:
             self.rating_1 = Rating.objects.create(
                 rate=3, user=self.user_1, recipe=self.recipe_1
             )
         self.assertEqual(e.exception.messages[0], "User cannot rate its own recipe!")
+
+    def test_invalid_rating_out_of_range(self):
+        pass
 
     def test_avg_rating(self):
         self.assertEqual(self.recipe_1.avg_rating(), 4)
