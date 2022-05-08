@@ -10,4 +10,11 @@ urlpatterns = [
     ),
     path("add_recipe/", views.RecipeCreateView.as_view(), name="add-recipe"),
     path("add_rating/", views.RatingView.as_view(), name="add-rating"),
+    path("recipes_list/", views.RecipesListView.as_view(), name="recipes-list"),
+    path(
+        "top_ingredients/",
+        views.TopIngredientsListView.as_view(),
+        name="top-ingredients",
+    ),
+    path("my_recipes/", views.MyRecipesListView.as_view(), name="my-recipes"),
 ]

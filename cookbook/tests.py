@@ -1,4 +1,3 @@
-from django.forms import PasswordInput
 from django.test import TestCase
 from django.urls import reverse
 from .models import Ingredient, Recipe, Rating
@@ -103,14 +102,12 @@ class RecipeTestCase(CookbookTestCase):
         pass
 
     def test_avg_rating(self):
-        self.assertEqual(self.recipe_1.avg_rating(), 4)
+        self.assertEqual(self.recipe_1.avg_rating, 4)
 
 
 #########################################################################################
 # API tests
 #########################################################################################
-
-
 class APIViewTestCase(APITestCase):
     def setUp(self):
         self.user_1 = User.objects.create_user(
@@ -130,11 +127,23 @@ class APIViewTestCase(APITestCase):
         self.user_2.last_name = ("Babic",)
 
         self.client = APIClient()
+
         self.register_url = reverse("register")
         self.login_url = reverse("login")
+
+        self.access_token = self.client.post(
+            self.login_url, {"username": "Bo", "password": "password321"}
+        ).json()["access"]
+
+
+class CreateAPIViewTestCase(APIViewTestCase):
+    def setUp(self):
+        super().setUp()
+
         self.create_ingredient_url = reverse("add-ingredient")
         self.create_recipe_url = reverse("add-recipe")
         self.add_rating_url = reverse("add-rating")
+
         self.data = {
             "username": "Bob",
             "email": "bob@gmail.com",
@@ -143,12 +152,6 @@ class APIViewTestCase(APITestCase):
             "first_name": "Bob",
             "last_name": "Bobic",
         }
-
-        self.access_token = self.client.post(
-            self.login_url, {"username": "Bo", "password": "password321"}
-        ).json()["access"]
-
-        return super().setUp()
 
     def test_login_returns_jwt_tokens(self):
         """
@@ -331,3 +334,57 @@ class APIViewTestCase(APITestCase):
 
         self.assertEqual(e.exception.messages[0], "User cannot rate its own recipe!")
         self.assertEqual(Rating.objects.count(), 0)
+
+
+class ListAPIViewTestCase(APIViewTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.recipes_list_url = reverse("recipes-list")
+        self.my_recipes_url = reverse("my-recipes")
+        self.create_recipe_url = reverse("add-recipe")
+        self.top_ingredients_url = reverse("top-ingredients")
+
+        # Create ingredients.
+        self.ingredient_1 = Ingredient.objects.create(name="oil")
+        self.ingredient_2 = Ingredient.objects.create(name="flour")
+
+        # Create recipe.
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer " + self.access_token)
+        self.client.post(
+            self.create_recipe_url,
+            {
+                "name": "bread",
+                "description": "Bla bla",
+                "author": self.user_1.id,
+                "ingredients": [self.ingredient_1.id, self.ingredient_2.id],
+            },
+        )
+
+    def test_recipes_list_view(self):
+        """
+        List all recipes without query params.
+        """
+
+        response = self.client.get(self.recipes_list_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[0]["name"], "bread")
+
+    def test_my_recipes_list_view(self):
+        """
+        List only user 1 recipes.
+        """
+
+        response = self.client.get(self.my_recipes_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[0]["name"], "bread")
+
+    def test_top_ingredients_list_view(self):
+        top_ingredients = Ingredient.objects.top_ingredients()
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer " + self.access_token)
+        response = self.client.get(self.top_ingredients_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(top_ingredients), 2)  # Expected since 2 have been created.

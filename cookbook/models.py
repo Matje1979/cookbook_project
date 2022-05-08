@@ -28,9 +28,13 @@ class Recipe(models.Model):
     def __str__(self):
         return self.name
 
+    @property
     def avg_rating(self):
         ratings_list = list(self.ratings.values_list("rate", flat=True))
-        return sum(ratings_list) / len(ratings_list)
+        if len(ratings_list) > 0:
+            return sum(ratings_list) / len(ratings_list)
+        else:
+            return 0
 
 
 class Rating(models.Model):

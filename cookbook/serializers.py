@@ -84,12 +84,16 @@ class RecipeSerializer(serializers.ModelSerializer):
     ingredients = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Ingredient.objects.all()
     )
-    extra_kwargs = {"ingredients": {"allow_empty": False}}
+    avg_rating = serializers.IntegerField(required=False)
+    extra_kwargs = {
+        "ingredients": {"allow_empty": False},
+        "avg_rating": {"allow_empty": True, "required": False},
+    }
 
     class Meta:
         model = Recipe
         # fields = "__all__"
-        fields = ["name", "description", "ingredients", "author"]
+        fields = ["name", "description", "ingredients", "author", "avg_rating"]
 
 
 class RatingSerializer(serializers.ModelSerializer):
