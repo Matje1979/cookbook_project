@@ -5,6 +5,7 @@ from django.contrib.auth.password_validation import validate_password
 
 from cookbook.models import Ingredient, Rating, Recipe
 import requests
+from decouple import config
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -43,8 +44,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
 
         # Chech the email's validity.
+        hunter_api_key = config("HUNTER_API_KEY")
         response = requests.get(
-            f"https://api.hunter.io/v2/email-verifier?email={attrs['email']}&api_key=fef6c29aefda063bbbd82c4f8467b760f566e3cb"
+            f"https://api.hunter.io/v2/email-verifier?email={attrs['email']}&api_key={hunter_api_key }"
         )
 
         if response.json()["data"]["status"] == "invalid":
