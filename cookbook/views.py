@@ -3,7 +3,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .serializers import IngredientSerializer, RecipeSerializer, RegisterSerializer
+from .serializers import (
+    IngredientSerializer,
+    RatingSerializer,
+    RecipeSerializer,
+    RegisterSerializer,
+)
 from rest_framework import generics
 
 # Create your views here.
@@ -25,6 +30,7 @@ class RecipeCreateView(generics.CreateAPIView):
 
 class RatingView(generics.CreateAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = RatingSerializer
 
 
 class RegisterView(generics.CreateAPIView):

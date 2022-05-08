@@ -1,7 +1,10 @@
+from django.forms import PasswordInput
 from django.test import TestCase
+from django.urls import reverse
 from .models import Ingredient, Recipe, Rating
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from rest_framework.test import APITestCase, APIClient
 
 
 class CookbookTestCase(TestCase):
@@ -101,3 +104,230 @@ class RecipeTestCase(CookbookTestCase):
 
     def test_avg_rating(self):
         self.assertEqual(self.recipe_1.avg_rating(), 4)
+
+
+#########################################################################################
+# API tests
+#########################################################################################
+
+
+class APIViewTestCase(APITestCase):
+    def setUp(self):
+        self.user_1 = User.objects.create_user(
+            "Bo",
+            "ex@gmail.com",
+            "password321",
+        )
+        self.user_1.first_name = ("Bo",)
+        self.user_1.last_name = ("Bobic",)
+
+        self.user_2 = User.objects.create_user(
+            "Joe",
+            "xzy@gmail.com",
+            "password321",
+        )
+        self.user_2.first_name = ("Joe",)
+        self.user_2.last_name = ("Babic",)
+
+        self.client = APIClient()
+        self.register_url = reverse("register")
+        self.login_url = reverse("login")
+        self.create_ingredient_url = reverse("add-ingredient")
+        self.create_recipe_url = reverse("add-recipe")
+        self.add_rating_url = reverse("add-rating")
+        self.data = {
+            "username": "Bob",
+            "email": "bob@gmail.com",
+            "password": "password321",
+            "password2": "password321",
+            "first_name": "Bob",
+            "last_name": "Bobic",
+        }
+
+        self.access_token = self.client.post(
+            self.login_url, {"username": "Bo", "password": "password321"}
+        ).json()["access"]
+
+        return super().setUp()
+
+    def test_login_returns_jwt_tokens(self):
+        """
+        Check if Login view returns access and refresh tokens.
+        """
+        credentials = {"username": "Bo", "password": "password321"}
+
+        response = self.client.post(self.login_url, credentials)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("access" in response.json().keys())
+        self.assertTrue("refresh" in response.json().keys())
+
+    def test_registration_OK(self):
+        response = self.client.post(self.register_url, self.data)
+        self.assertEqual(response.status_code, 201)
+
+    def test_registration_password_mismatch(self):
+        self.data["password2"] = "password321123"
+        response = self.client.post(self.register_url, self.data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(), {"password": ["Password fields didn't match."]}
+        )
+
+    def test_login_invalid_password(self):
+        """
+        Check if Login view FAILS to return access and refresh tokens with BAD credentials.
+        """
+        credentials = {"username": "Bo", "password": "FAKEpass"}
+
+        response = self.client.post(self.login_url, credentials)
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_registration_OK(self):
+        response = self.client.post(self.register_url, self.data)
+        self.assertEqual(response.status_code, 201)
+
+    def test_registration_password_mismatch(self):
+        self.data["password2"] = "password321123"
+        response = self.client.post(self.register_url, self.data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(), {"password": ["Password fields didn't match."]}
+        )
+
+    def test_registration_invalid_email(self):
+        self.data["email"] = "bob@yhoo.com"
+        response = self.client.post(self.register_url, self.data)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"email": ["Provided email is invalid."]})
+
+    def test_ingredient_create_view_OK(self):
+        """
+        Check ingredient creation with a valid access token.
+        """
+
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer " + self.access_token)
+        response = self.client.post(self.create_ingredient_url, {"name": "oil"})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Ingredient.objects.count(), 1)
+
+    def test_ingredient_create_view_no_token_FAIL(self):
+        """
+        Check ingredient creation FAILS without an access token.
+        """
+
+        response = self.client.post(self.create_ingredient_url, {"name": "oil"})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(Ingredient.objects.count(), 0)
+
+    def test_recipe_create_view_OK(self):
+        """
+        Check recipy creation with valid data.
+        """
+        self.ingredient_1 = Ingredient.objects.create(name="oil")
+        self.ingredient_2 = Ingredient.objects.create(name="flour")
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer " + self.access_token)
+        response = self.client.post(
+            self.create_recipe_url,
+            {
+                "name": "bread",
+                "description": "Bla bla",
+                "author": self.user_1.id,
+                "ingredients": [self.ingredient_1.id, self.ingredient_2.id],
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Recipe.objects.count(), 1)
+        self.assertEqual(Ingredient.objects.count(), 2)
+        self.assertEqual(Recipe.objects.first().author.username, self.user_1.username)
+
+        self.assertEqual(
+            list(
+                Recipe.objects.first().ingredients.all().values_list("name", flat=True)
+            ),
+            list(Ingredient.objects.all().values_list("name", flat=True)),
+        )
+
+    def test_rating_view(self):
+        """
+        Rating with valid data.
+        """
+        self.ingredient_1 = Ingredient.objects.create(name="oil")
+        self.ingredient_2 = Ingredient.objects.create(name="flour")
+        self.ingredient_3 = Ingredient.objects.create(name="sugar")
+
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer " + self.access_token)
+        self.client.post(
+            self.create_recipe_url,
+            {
+                "name": "bread",
+                "description": "Bla bla",
+                "author": self.user_1.id,
+                "ingredients": [self.ingredient_1.id, self.ingredient_2.id],
+            },
+        )
+        self.client.post(
+            self.create_recipe_url,
+            {
+                "name": "Cake",
+                "description": "Delicious cake",
+                "author": self.user_2.id,
+                "ingredients": [
+                    self.ingredient_1.id,
+                    self.ingredient_2.id,
+                    self.ingredient_3.id,
+                ],
+            },
+        )
+        # User 1 rating cake. Cannot rate bread because users cannot rate their own resipes.
+        response_1 = self.client.post(
+            self.add_rating_url,
+            {"recipe": Recipe.objects.get(name="Cake").id, "rate": 5},
+        )
+
+        # User 2 rating bread.
+        # First must fetch access token for user 2 to authenticate as user 2.
+        self.access_token_2 = self.client.post(
+            self.login_url, {"username": "Joe", "password": "password321"}
+        ).json()["access"]
+
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer " + self.access_token_2)
+
+        response_2 = self.client.post(
+            self.add_rating_url,
+            {"recipe": Recipe.objects.get(name="bread").id, "rate": 4},
+        )
+
+        self.assertEqual(response_1.status_code, 201)
+        self.assertEqual(response_2.status_code, 201)
+
+        self.assertEqual(Rating.objects.count(), 2)
+
+    def test_rating_view_self_rating_FAIL(self):
+        """
+        Rating ones own recipe must fail.
+        """
+        self.ingredient_1 = Ingredient.objects.create(name="oil")
+        self.ingredient_2 = Ingredient.objects.create(name="flour")
+
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer " + self.access_token)
+        self.client.post(
+            self.create_recipe_url,
+            {
+                "name": "bread",
+                "description": "Bla bla",
+                "author": self.user_1.id,
+                "ingredients": [self.ingredient_1.id, self.ingredient_2.id],
+            },
+        )
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer " + self.access_token)
+        with self.assertRaises(ValidationError) as e:
+            self.client.post(
+                self.add_rating_url,
+                {"recipe": Recipe.objects.get(name="bread").id, "rate": 5},
+            )
+
+        self.assertEqual(e.exception.messages[0], "User cannot rate its own recipe!")
+        self.assertEqual(Rating.objects.count(), 0)

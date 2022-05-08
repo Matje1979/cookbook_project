@@ -3,7 +3,8 @@ from django.contrib.auth.models import User
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth.password_validation import validate_password
 
-from cookbook.models import Ingredient, Recipe
+from cookbook.models import Ingredient, Rating, Recipe
+import requests
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -40,6 +41,14 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"password": "Password fields didn't match."}
             )
+
+        # Chech the email's validity.
+        response = requests.get(
+            f"https://api.hunter.io/v2/email-verifier?email={attrs['email']}&api_key=fef6c29aefda063bbbd82c4f8467b760f566e3cb"
+        )
+
+        if response.json()["data"]["status"] == "invalid":
+            raise serializers.ValidationError({"email": "Provided email is invalid."})
 
         return attrs
 
@@ -84,4 +93,11 @@ class RecipeSerializer(serializers.ModelSerializer):
 
 
 class RatingSerializer(serializers.ModelSerializer):
-    pass
+    recipe = serializers.PrimaryKeyRelatedField(
+        many=False, queryset=Recipe.objects.all()
+    )
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = Rating
+        fields = ["recipe", "user", "rate"]
