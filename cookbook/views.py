@@ -5,8 +5,10 @@ from django.contrib.auth.models import User
 
 from cookbook.models import Ingredient, Recipe
 from .serializers import (
+    IngredientListSerializer,
     IngredientSerializer,
     RatingSerializer,
+    RecipeListSerializer,
     RecipeSerializer,
     RegisterSerializer,
 )
@@ -51,7 +53,7 @@ class RegisterView(generics.CreateAPIView):
 
 class RecipesListView(generics.ListAPIView):
     permission_classes = (IsAuthenticated,)
-    serializer_class = RecipeSerializer
+    serializer_class = RecipeListSerializer
 
     def get_queryset(self):
 
@@ -94,7 +96,7 @@ class RecipesListView(generics.ListAPIView):
 
 class MyRecipesListView(generics.ListAPIView):
     permission_classes = (IsAuthenticated,)
-    serializer_class = RecipeSerializer
+    serializer_class = RecipeListSerializer
 
     def get_queryset(self):
         queryset = Recipe.objects.filter(author=self.request.user)
@@ -103,7 +105,7 @@ class MyRecipesListView(generics.ListAPIView):
 
 class TopIngredientsListView(generics.ListAPIView):
     permission_classes = (IsAuthenticated,)
-    serializer_class = IngredientSerializer
+    serializer_class = IngredientListSerializer
 
     def get_queryset(self):
         queryset = Ingredient.objects.top_ingredients()

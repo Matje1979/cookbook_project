@@ -74,6 +74,12 @@ class IngredientSerializer(serializers.ModelSerializer):
         fields = ["name"]
 
 
+class IngredientListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ingredient
+        fields = ["name", "id"]
+
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -96,6 +102,10 @@ class RecipeSerializer(serializers.ModelSerializer):
         model = Recipe
         # fields = "__all__"
         fields = ["name", "description", "ingredients", "author", "avg_rating"]
+
+
+class RecipeListSerializer(RecipeSerializer):
+    ingredients = IngredientListSerializer(many=True, read_only=True)
 
 
 class RatingSerializer(serializers.ModelSerializer):
